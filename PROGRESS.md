@@ -1,7 +1,7 @@
 # Progress
 
 ## Current Step
-Complete. All tasks finished.
+Fixed SplatClusterData serialization bug. Awaiting re-bake and runtime test.
 
 ## Completed: 21 / 21 tasks
 
@@ -13,6 +13,27 @@ Nothing.
 
 ## Deferred
 None. All originally-deferred items were moved to active and completed.
+
+## Bug Fix — SplatClusterData not serializing to disk
+
+**File:** `GaussianExample-URP/Assets/GaussianLOD/Runtime/Clustering/SplatClusterData.cs`
+
+**Root cause:** `SplatClusterData` was a struct with `[StructLayout(LayoutKind.Sequential)]`
+but no `[System.Serializable]` attribute. Unity's serializer silently skips arrays of
+undecorated structs when writing `.asset` files to disk. The baker wrote 317 clusters
+into `m_Clusters` in memory; the Editor Inspector showed them correctly from that
+in-memory state; but at runtime (after Unity loaded the `.asset` from disk) the field
+deserialized as `null`, causing `GaussianLODController.Awake()` to throw
+"clusterAsset has no clusters".
+
+**Fix:** Added `[System.Serializable]` above `[StructLayout(LayoutKind.Sequential)]`
+on `SplatClusterData`. All seven fields (`int`, `Bounds`, `Vector3`, `Color`, `float`)
+are Unity-serializable types — only the attribute was missing. A full re-bake is
+required after this fix to write the cluster array to disk for the first time.
+
+`[Serializable]` and `[StructLayout(LayoutKind.Sequential)]` are fully compatible —
+the former controls Unity's asset serializer; the latter controls GPU buffer memory
+layout. Both are needed.
 
 ## Files Written / Modified This Session
 1. ARCHITECTURE.md — render pipeline call chain, buffer table, full API surface,
